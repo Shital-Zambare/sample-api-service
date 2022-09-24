@@ -64,6 +64,7 @@ pipeline {
             }
           }
       }
+    }
      stage('OSS License Checker') {
              steps {
                container('licensefinder') {
@@ -77,8 +78,7 @@ pipeline {
                  }
                }
              }
-           }
-       }
+           
     stage('Package') {
       steps {
         container('docker-tools') {
