@@ -20,16 +20,6 @@ pipeline {
             }
           }
         }
-        stage('Secrets scanner') {
-          steps {
-            container('trufflehog') {
-              sh 'git clone ${GIT_URL}'
-              sh 'cd sample-api-service && ls -al'
-              sh 'cd sample-api-service && trufflehog --exclude_paths ./secrets-exclude.txt .'
-              sh 'rm -rf sample-api-service'
-            }
-          }
-        }
       }
     }
     stage('Build') {
@@ -49,62 +39,39 @@ pipeline {
           }
         }
         stage('SCA - Dependency Checker') {
-            steps {
-              container('maven') {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
-                 sh './mvnw org.owasp:dependency-check-maven:check'
-                }
-                }
-            }
-            post {
-              always {
-                archiveArtifacts allowEmptyArchive: true, artifacts: 'target/dependency-check-report.html', fingerprint: true, onlyIfSuccessful: false
-                dependencyCheckPublisher pattern: 'target/dependency-check-report.xml'
-              }
-            }
-          }
+                    steps {
+                      container('maven') {catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
+                                          sh './mvnw org.owasp:dependency-check-maven:check'
+                      }
+                        }
+                    }
+                    post {
+                      always {
+                        archiveArtifacts allowEmptyArchive: true, artifacts: 'target/dependency-check-report.html', fingerprint: true, onlyIfSuccessful: false
+                        dependencyCheckPublisher pattern: 'target/dependency-check-report.xml'
+                      }
+                    }
+                  }
+                  stage('OSS License Checker') {
+                               steps {
+                                 container('licensefinder') {
+                                   catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                                     sh '''#!/bin/bash --login
+                                           /bin/bash --login
+                                           rvm use default
+                                           gem install license_finder
+                                           license_finder
+                                         '''
+                                   }
+                                 }
+                               }
+                             }
       }
     }
-     stage('OSS License Checker') {
-             steps {
-               container('licensefinder') {
-                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                   sh '''#!/bin/bash --login
-                         /bin/bash --login
-                         rvm use default
-                         gem install license_finder
-                         license_finder
-                       '''
-                 }
-               }
-             }
-           
     stage('Package') {
       steps {
         container('docker-tools') {
           sh "docker build . -t ${APP_NAME}"
-        }
-      }
-    }
-    stage('Artifact Analysis') {
-      parallel {
-        stage('Contianer Scan') {
-          steps {
-            container('docker-tools') {
-              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh "grype ${APP_NAME}"
-              }
-            }
-          }
-        }
-        stage('Container Audit') {
-          steps {
-            container('docker-tools') {
-              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh "dockle ${APP_NAME}"
-              }
-            }
-          }
         }
       }
     }
